@@ -24,6 +24,477 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <style>
+      #auth-gate,#auth-gate *,#admin-gate,#admin-gate *,#app-logout-bar,#app-logout-bar *{box-sizing:border-box;font-family:"Inter","Noto Sans Bengali",ui-sans-serif,system-ui,sans-serif;}
+      html.blps-locked #root{display:none !important;}
+      #auth-gate{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b 55%,#1d4ed8);padding:16px;}
+      #auth-gate.blps-hidden{display:none !important;}
+      .auth-card{width:100%;max-width:380px;background:#fff;border-radius:18px;box-shadow:0 25px 50px -12px rgba(0,0,0,.45);overflow:hidden;}
+      .auth-body{padding:26px 24px 24px;}
+      .auth-title{font-size:16px;font-weight:900;color:#0f172a;margin-bottom:2px;}
+      .auth-sub{font-size:11px;color:#64748b;margin-bottom:18px;line-height:1.5;}
+      .auth-field{margin-bottom:12px;}
+      .auth-field label{display:block;font-size:10.5px;font-weight:800;color:#475569;margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em;}
+      .auth-field input{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:9px;font-size:13px;font-family:inherit;outline:none;}
+      .auth-field input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12);}
+      .auth-submit{width:100%;margin-top:8px;background:#2563eb;color:#fff;font-weight:800;font-size:13.5px;padding:11px;border:none;border-radius:10px;cursor:pointer;transition:opacity .15s;}
+      .auth-submit:hover{opacity:.93;}
+      .auth-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:11.5px;font-weight:700;padding:8px 10px;border-radius:8px;margin-bottom:12px;display:none;}
+      .auth-error.show{display:block;}
+
+      /* --- Admin dashboard (user + branding management) --- */
+      #admin-gate{position:fixed;inset:0;z-index:99998;display:none;background:#f1f5f9;overflow-y:auto;padding:20px 14px 60px;}
+      #admin-gate.active{display:block;}
+      .admin-wrap{max-width:680px;margin:0 auto;}
+      .admin-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px;}
+      .admin-head h2{font-size:16px;font-weight:900;color:#0f172a;}
+      .admin-head p{font-size:11px;color:#64748b;margin-top:2px;}
+      .btn-logout{background:#fff;border:1px solid #cbd5e1;color:#334155;font-weight:800;font-size:11.5px;padding:7px 13px;border-radius:9px;cursor:pointer;white-space:nowrap;}
+      .btn-logout:hover{background:#f8fafc;}
+      .admin-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+      .admin-card h3{font-size:12.5px;font-weight:900;color:#0f172a;margin-bottom:10px;}
+      .admin-card .hint{font-size:10.5px;color:#94a3b8;margin-top:-6px;margin-bottom:10px;line-height:1.5;}
+      .add-user-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+      .add-user-grid input[type=text],.add-user-grid input[type=password]{padding:9px 11px;border:1px solid #cbd5e1;border-radius:9px;font-size:12.5px;font-family:inherit;outline:none;width:100%;}
+      .add-user-grid input:focus{border-color:#3b82f6;}
+      .add-user-grid .full{grid-column:1 / -1;}
+      .logo-pick{display:flex;align-items:center;gap:8px;}
+      .logo-pick input[type=file]{flex:1;font-size:11px;}
+      .logo-preview{width:34px;height:34px;border-radius:8px;object-fit:contain;border:1px solid #e2e8f0;background:#f8fafc;display:none;}
+      .logo-preview.show{display:block;}
+      .add-user-row-btn{margin-top:10px;background:#2563eb;color:#fff;font-weight:800;font-size:12.5px;padding:9px 15px;border:none;border-radius:9px;cursor:pointer;width:100%;}
+      .add-user-row-btn:hover{opacity:.93;}
+      .user-row{padding:12px 4px;border-top:1px solid #f1f5f9;}
+      .user-row:first-child{border-top:none;}
+      .user-row-top{display:flex;align-items:center;gap:10px;}
+      .user-row .u-name{font-weight:800;font-size:12.5px;color:#0f172a;font-family:"IBM Plex Mono",monospace;}
+      .user-row .u-pass{font-size:11px;color:#64748b;font-family:"IBM Plex Mono",monospace;}
+      .user-row .u-meta{flex:1;}
+      .status-pill{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.03em;}
+      .status-pill.on{background:#d1fae5;color:#047857;}
+      .status-pill.off{background:#fee2e2;color:#b91c1c;}
+      .u-actions{display:flex;gap:6px;}
+      .u-actions button{font-size:10.5px;font-weight:800;padding:5px 9px;border-radius:7px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;color:#334155;}
+      .u-actions button.danger{color:#b91c1c;border-color:#fecaca;}
+      .u-actions button:hover{background:#f8fafc;}
+      .u-brand-edit{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0;}
+      .u-brand-edit.open{display:block;}
+      .empty-note{font-size:11.5px;color:#94a3b8;text-align:center;padding:14px 0;}
+
+      /* --- Branding bar shown above the app for a logged-in user (fixed, with spacer) --- */
+      #user-brand-bar{position:fixed;top:0;left:0;right:0;z-index:9998;display:none;align-items:center;gap:10px;padding:9px 16px;background:#0f172a;color:#fff;min-height:44px;}
+      #user-brand-bar.active{display:flex;}
+      html.blps-branded #root{padding-top:44px;}
+      #user-brand-bar img{height:26px;width:26px;object-fit:contain;border-radius:6px;background:#fff;}
+      #user-brand-bar .brand-name{font-weight:900;font-size:13px;letter-spacing:.01em;flex:1;}
+      #user-brand-bar .who{font-size:10px;font-weight:700;background:rgba(255,255,255,.12);padding:4px 10px;border-radius:99px;}
+      #user-brand-bar button{background:rgba(255,255,255,.12);border:none;color:#fff;font-weight:800;font-size:10.5px;padding:6px 11px;border-radius:8px;cursor:pointer;}
+      #user-brand-bar button:hover{background:rgba(255,255,255,.2);}
+
+      #app-logout-bar{position:fixed;top:8px;right:8px;z-index:9999;display:none;align-items:center;gap:8px;}
+      #app-logout-bar.active{display:flex;}
+
+      @media print{ #auth-gate,#admin-gate,#app-logout-bar,#user-brand-bar{display:none !important;} }
+    </style>
+
+    <!-- Single login form: same fields for everyone. The system detects whether the
+         credentials belong to the main admin or to a user created by the admin. -->
+    <div id="auth-gate">
+      <div class="auth-card">
+        <div class="auth-body">
+          <div class="auth-title">লগইন করুন</div>
+          <div class="auth-sub">আপনার ইউজারনেম ও পাসওয়ার্ড দিন। মূল এডমিন হলে এডমিন প্যানেল খুলবে, ইউজার হলে সরাসরি সিস্টেম খুলবে।</div>
+          <div class="auth-error" id="auth-error"></div>
+          <form onsubmit="return blpsLogin(event)">
+            <div class="auth-field">
+              <label>ইউজারনেম</label>
+              <input type="text" id="login-username" autocomplete="username" required>
+            </div>
+            <div class="auth-field">
+              <label>পাসওয়ার্ড</label>
+              <input type="password" id="login-password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="auth-submit">লগইন করুন</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin dashboard: create / enable / disable / delete users, and set each user's
+         header name + logo (their app branding). -->
+    <div id="admin-gate">
+      <div class="admin-wrap">
+        <div class="admin-head">
+          <div>
+            <h2>এডমিন প্যানেল</h2>
+            <p>ইউজারদের আইডি-পাসওয়ার্ড ও হেডার নেম/লোগো এখান থেকে সেট করুন।</p>
+          </div>
+          <button type="button" class="btn-logout" onclick="blpsLogout()">লগআউট</button>
+        </div>
+
+        <div class="admin-card">
+          <h3>নতুন ইউজার যোগ করুন</h3>
+          <div class="add-user-grid">
+            <input type="text" id="new-username" placeholder="ইউজারনেম">
+            <input type="text" id="new-password" placeholder="পাসওয়ার্ড">
+            <input type="text" id="new-headername" class="full" placeholder="হেডার নেম (ঐচ্ছিক — ইউজারের অ্যাপে উপরে দেখাবে)">
+            <div class="full logo-pick">
+              <input type="file" id="new-logo" accept="image/*" onchange="blpsPreviewLogo(this,'new-logo-preview')">
+              <img id="new-logo-preview" class="logo-preview" alt="logo preview">
+            </div>
+          </div>
+          <button type="button" class="add-user-row-btn" onclick="blpsAddUser()">ইউজার যোগ করুন</button>
+        </div>
+
+        <div class="admin-card">
+          <h3>বর্তমান ইউজার তালিকা</h3>
+          <div id="user-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Branding bar: shows the logged-in user's header name + logo above the app -->
+    <div id="user-brand-bar" class="no-print">
+      <img id="brand-logo" alt="logo">
+      <div class="brand-name" id="brand-name"></div>
+      <span class="who" id="brand-who"></span>
+      <button type="button" onclick="blpsLogout()">লগআউট</button>
+    </div>
+
+    <!-- Small logout bar shown for users without custom branding -->
+    <div id="app-logout-bar" class="no-print">
+      <span class="who" id="app-logout-who" style="background:#0f172a;color:#fff;font-size:10px;font-weight:800;padding:5px 10px;border-radius:99px;opacity:.85;"></span>
+      <button type="button" class="btn-logout" onclick="blpsLogout()">লগআউট</button>
+    </div>
+
+    <script>
+      (function () {
+        var ADMIN_USER = "admin";
+        var ADMIN_PASS = "eco@sr123";
+        var USERS_KEY = "blps_users_v1";
+        var SESSION_KEY = "blps_session_v1";
+
+        document.documentElement.classList.add("blps-locked");
+
+        function getUsers() {
+          try {
+            var raw = localStorage.getItem(USERS_KEY);
+            return raw ? JSON.parse(raw) : [];
+          } catch (e) {
+            return [];
+          }
+        }
+        function saveUsers(list) {
+          localStorage.setItem(USERS_KEY, JSON.stringify(list));
+        }
+        function getSession() {
+          try {
+            var raw = localStorage.getItem(SESSION_KEY);
+            return raw ? JSON.parse(raw) : null;
+          } catch (e) {
+            return null;
+          }
+        }
+        function setSession(session) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        }
+        function clearSession() {
+          localStorage.removeItem(SESSION_KEY);
+        }
+
+        function showError(msg) {
+          var el = document.getElementById("auth-error");
+          el.textContent = msg;
+          el.classList.add("show");
+        }
+        function clearError() {
+          var el = document.getElementById("auth-error");
+          el.classList.remove("show");
+          el.textContent = "";
+        }
+        function esc(s) {
+          return String(s).replace(/[&<>"']/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+          });
+        }
+
+        // ---- Single login: auto-detects admin vs user ----
+        window.blpsLogin = function (evt) {
+          evt.preventDefault();
+          clearError();
+          var u = document.getElementById("login-username").value.trim();
+          var p = document.getElementById("login-password").value;
+
+          if (u === ADMIN_USER && p === ADMIN_PASS) {
+            setSession({ role: "admin", username: ADMIN_USER });
+            enterAdmin();
+            return false;
+          }
+
+          var users = getUsers();
+          var match = null;
+          for (var i = 0; i < users.length; i++) {
+            if (users[i].username === u && users[i].password === p) {
+              match = users[i];
+              break;
+            }
+          }
+          if (!match) {
+            showError("ভুল ইউজারনেম বা পাসওয়ার্ড।");
+          } else if (match.active === false) {
+            showError("এই ইউজার অ্যাকাউন্টটি বর্তমানে বন্ধ আছে। এডমিনের সাথে যোগাযোগ করুন।");
+          } else {
+            setSession({ role: "user", username: match.username });
+            enterApp(match);
+          }
+          return false;
+        };
+
+        // ---- Logo file -> base64 preview helper (used both for add-user and edit) ----
+        window.blpsPreviewLogo = function (input, previewId, callback) {
+          var file = input.files && input.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            var dataUrl = e.target.result;
+            var img = document.getElementById(previewId);
+            if (img) {
+              img.src = dataUrl;
+              img.classList.add("show");
+            }
+            input.dataset.value = dataUrl;
+            if (callback) callback(dataUrl);
+          };
+          reader.readAsDataURL(file);
+        };
+
+        window.blpsAddUser = function () {
+          var uEl = document.getElementById("new-username");
+          var pEl = document.getElementById("new-password");
+          var hEl = document.getElementById("new-headername");
+          var lEl = document.getElementById("new-logo");
+          var u = uEl.value.trim();
+          var p = pEl.value.trim();
+          var h = hEl.value.trim();
+          var logo = lEl.dataset.value || "";
+
+          if (!u || !p) {
+            alert("ইউজারনেম ও পাসওয়ার্ড দুটোই দিন।");
+            return;
+          }
+          if (u === ADMIN_USER) {
+            alert('"admin" নামে ইউজার তৈরি করা যাবে না।');
+            return;
+          }
+          var users = getUsers();
+          for (var i = 0; i < users.length; i++) {
+            if (users[i].username.toLowerCase() === u.toLowerCase()) {
+              alert("এই ইউজারনেমটি আগে থেকেই আছে।");
+              return;
+            }
+          }
+          users.push({ username: u, password: p, active: true, headerName: h, logo: logo });
+          saveUsers(users);
+          uEl.value = "";
+          pEl.value = "";
+          hEl.value = "";
+          lEl.value = "";
+          lEl.dataset.value = "";
+          var prev = document.getElementById("new-logo-preview");
+          prev.classList.remove("show");
+          prev.src = "";
+          renderUserList();
+        };
+
+        window.blpsToggleUser = function (username) {
+          var users = getUsers();
+          for (var i = 0; i < users.length; i++) {
+            if (users[i].username === username) {
+              users[i].active = users[i].active === false ? true : false;
+              break;
+            }
+          }
+          saveUsers(users);
+          renderUserList();
+        };
+
+        window.blpsDeleteUser = function (username) {
+          if (!confirm('"' + username + '" ইউজারটি মুছে ফেলতে চান?')) return;
+          var users = getUsers().filter(function (x) {
+            return x.username !== username;
+          });
+          saveUsers(users);
+          renderUserList();
+        };
+
+        window.blpsToggleBrandEdit = function (username) {
+          var el = document.getElementById("brand-edit-" + cssSafe(username));
+          if (el) el.classList.toggle("open");
+        };
+
+        window.blpsSaveBranding = function (username) {
+          var safe = cssSafe(username);
+          var hEl = document.getElementById("edit-headername-" + safe);
+          var lEl = document.getElementById("edit-logo-" + safe);
+          var users = getUsers();
+          for (var i = 0; i < users.length; i++) {
+            if (users[i].username === username) {
+              users[i].headerName = hEl.value.trim();
+              if (lEl.dataset.value) users[i].logo = lEl.dataset.value;
+              break;
+            }
+          }
+          saveUsers(users);
+          alert("ব্র্যান্ডিং সংরক্ষণ করা হয়েছে।");
+          renderUserList();
+
+          // If this user is currently logged in, refresh their live header immediately.
+          var session = getSession();
+          if (session && session.role === "user" && session.username === username) {
+            var refreshed = getUsers().filter(function (x) { return x.username === username; })[0];
+            if (refreshed) applyBrandBar(refreshed);
+          }
+        };
+
+        window.blpsRemoveLogo = function (username) {
+          var users = getUsers();
+          for (var i = 0; i < users.length; i++) {
+            if (users[i].username === username) {
+              users[i].logo = "";
+              break;
+            }
+          }
+          saveUsers(users);
+          renderUserList();
+        };
+
+        function cssSafe(s) {
+          return String(s).replace(/[^a-zA-Z0-9_-]/g, "_");
+        }
+
+        function renderUserList() {
+          var users = getUsers();
+          var wrap = document.getElementById("user-list");
+          if (!users.length) {
+            wrap.innerHTML = '<div class="empty-note">এখনো কোনো ইউজার তৈরি করা হয়নি।</div>';
+            return;
+          }
+          var html = "";
+          users.forEach(function (usr) {
+            var active = usr.active !== false;
+            var safe = cssSafe(usr.username);
+            var logoImg = usr.logo
+              ? '<img src="' + usr.logo + '" style="width:22px;height:22px;object-fit:contain;border-radius:5px;border:1px solid #e2e8f0;">'
+              : "";
+            html +=
+              '<div class="user-row">' +
+              '<div class="user-row-top">' +
+              logoImg +
+              '<div class="u-meta"><div class="u-name">' + esc(usr.username) + "</div>" +
+              '<div class="u-pass">পাসওয়ার্ড: ' + esc(usr.password) + (usr.headerName ? " · হেডার: " + esc(usr.headerName) : "") + "</div></div>" +
+              '<span class="status-pill ' + (active ? "on" : "off") + '">' + (active ? "চালু" : "বন্ধ") + "</span>" +
+              '<div class="u-actions">' +
+              '<button type="button" onclick="blpsToggleBrandEdit(\'' + safe + "')\">হেডার/লোগো</button>" +
+              '<button type="button" onclick="blpsToggleUser(\'' + esc(usr.username).replace(/'/g, "\\'") + "')\">" + (active ? "বন্ধ করুন" : "চালু করুন") + "</button>" +
+              '<button type="button" class="danger" onclick="blpsDeleteUser(\'' + esc(usr.username).replace(/'/g, "\\'") + "')\">মুছুন</button>" +
+              "</div></div>" +
+              '<div class="u-brand-edit" id="brand-edit-' + safe + '">' +
+              '<div class="add-user-grid">' +
+              '<input type="text" class="full" id="edit-headername-' + safe + '" placeholder="হেডার নেম" value="' + esc(usr.headerName || "") + '">' +
+              '<div class="full logo-pick">' +
+              '<input type="file" id="edit-logo-' + safe + '" accept="image/*" onchange="blpsPreviewLogo(this,\'edit-logo-preview-' + safe + "')\">" +
+              '<img id="edit-logo-preview-' + safe + '" class="logo-preview' + (usr.logo ? " show" : "") + '" src="' + (usr.logo || "") + '" alt="logo preview">' +
+              "</div></div>" +
+              '<div style="display:flex;gap:8px;margin-top:8px;">' +
+              '<button type="button" class="add-user-row-btn" style="margin-top:0;" onclick="blpsSaveBranding(\'' + esc(usr.username).replace(/'/g, "\\'") + "')\">সেভ করুন</button>" +
+              (usr.logo ? '<button type="button" class="btn-logout" onclick="blpsRemoveLogo(\'' + esc(usr.username).replace(/'/g, "\\'") + "')\">লোগো মুছুন</button>" : "") +
+              "</div></div></div>";
+          });
+          wrap.innerHTML = html;
+        }
+
+        function applyBrandBar(userRecord) {
+          var bar = document.getElementById("user-brand-bar");
+          var plainBar = document.getElementById("app-logout-bar");
+          var hasBrand = !!(userRecord.headerName || userRecord.logo);
+          if (hasBrand) {
+            document.getElementById("brand-name").textContent = userRecord.headerName || "";
+            var img = document.getElementById("brand-logo");
+            if (userRecord.logo) {
+              img.src = userRecord.logo;
+              img.style.display = "";
+            } else {
+              img.style.display = "none";
+            }
+            document.getElementById("brand-who").textContent = userRecord.username;
+            bar.classList.add("active");
+            plainBar.classList.remove("active");
+            document.documentElement.classList.add("blps-branded");
+          } else {
+            bar.classList.remove("active");
+            document.getElementById("app-logout-who").textContent = userRecord.username;
+            plainBar.classList.add("active");
+            document.documentElement.classList.remove("blps-branded");
+          }
+        }
+
+        function enterAdmin() {
+          document.getElementById("auth-gate").classList.add("blps-hidden");
+          document.getElementById("admin-gate").classList.add("active");
+          document.getElementById("app-logout-bar").classList.remove("active");
+          document.getElementById("user-brand-bar").classList.remove("active");
+          document.documentElement.classList.remove("blps-branded");
+          document.documentElement.classList.add("blps-locked");
+          renderUserList();
+        }
+
+        function enterApp(userRecord) {
+          document.getElementById("auth-gate").classList.add("blps-hidden");
+          document.getElementById("admin-gate").classList.remove("active");
+          document.documentElement.classList.remove("blps-locked");
+          applyBrandBar(userRecord);
+        }
+
+        function showLogin() {
+          document.getElementById("admin-gate").classList.remove("active");
+          document.getElementById("app-logout-bar").classList.remove("active");
+          document.getElementById("user-brand-bar").classList.remove("active");
+          document.documentElement.classList.remove("blps-branded");
+          document.documentElement.classList.add("blps-locked");
+          document.getElementById("auth-gate").classList.remove("blps-hidden");
+          clearError();
+          var uEl = document.getElementById("login-username");
+          var pEl = document.getElementById("login-password");
+          if (uEl) uEl.value = "";
+          if (pEl) pEl.value = "";
+        }
+
+        window.blpsLogout = function () {
+          clearSession();
+          showLogin();
+        };
+
+        // Resume session on load / reload.
+        var session = getSession();
+        if (session && session.role === "admin") {
+          enterAdmin();
+        } else if (session && session.role === "user") {
+          var users = getUsers();
+          var stillValid = users.filter(function (u) {
+            return u.username === session.username && u.active !== false;
+          })[0];
+          if (stillValid) {
+            enterApp(stillValid);
+          } else {
+            clearSession();
+            showLogin();
+          }
+        } else {
+          showLogin();
+        }
+      })();
+    </script>
   <script type="module">(function(){const n=document.createElement("link").relList;if(n&&n.supports&&n.supports("modulepreload"))return;for(const c of document.querySelectorAll('link[rel="modulepreload"]'))l(c);new MutationObserver(c=>{for(const f of c)if(f.type==="childList")for(const u of f.addedNodes)u.tagName==="LINK"&&u.rel==="modulepreload"&&l(u)}).observe(document,{childList:!0,subtree:!0});function r(c){const f={};return c.integrity&&(f.integrity=c.integrity),c.referrerPolicy&&(f.referrerPolicy=c.referrerPolicy),c.crossOrigin==="use-credentials"?f.credentials="include":c.crossOrigin==="anonymous"?f.credentials="omit":f.credentials="same-origin",f}function l(c){if(c.ep)return;c.ep=!0;const f=r(c);fetch(c.href,f)}})();var Au={exports:{}},rl={};/**
  * @license React
  * react-jsx-runtime.production.js
@@ -195,7 +666,7 @@ Error generating stack: `+s.message+`
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */const n6=[["path",{d:"M12 3v12",key:"1x0j5s"}],["path",{d:"m17 8-5-5-5 5",key:"7q97r8"}],["path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",key:"ih7n3h"}]],i6=Ya("upload",n6),l6=[{batchno:"2466818",customerpo:"2284:SAM:2602284",color:"599 DEEP BLACK",count:"40S1-ORG COTTON-100%-CH COMP",shadeno:"62938"},{batchno:"2554182",customerpo:"LP8943-VINTAGE",color:"302 CHARCOAL SLATE",count:"20/1 COM CARDED YARN",shadeno:"76731"},{batchno:"2604812",customerpo:"GAP-P920381",color:"111 BRIGHT CRIMSON",count:"32S/2 T/C COMBED BLEND",shadeno:"88419"}],il={sty:{x:50,y:18},count:{x:50,y:32},col:{x:50,y:65},shade:{x:50,y:77},batch:{x:50,y:89}},ri={sty:7.5,count:5,col:6,shade:6,batch:6},C2={sty:800,count:800,col:700,shade:700,batch:700},O2={batchno:"batchno",batch:"batchno",batchnumber:"batchno",batch_no:"batchno",lot:"batchno",lotno:"batchno",lotnumber:"batchno",dylotno:"batchno",dyelotno:"batchno",customerpo:"customerpo",customer_po:"customerpo",customerp0:"customerpo",po:"customerpo",pono:"customerpo",ponumber:"customerpo",sty:"customerpo",style:"customerpo",styleno:"customerpo",styno:"customerpo",style_no:"customerpo",stylenumber:"customerpo",buyerpo:"customerpo",orderno:"customerpo",color:"color",colour:"color",colur:"color",colr:"color",col:"color",colorname:"color",colourname:"color",count:"count",yarncount:"count",yarn_count:"count",ct:"count",cnt:"count",composition:"count",spec:"count",shadeno:"shadeno",shade_no:"shadeno",shade:"shadeno",shd:"shadeno",shdno:"shadeno",shadenumber:"shadeno",recipeno:"shadeno"},hm=t=>{const r=t-50;if(Math.abs(r)>=50)return{left:50,right:50};const l=Math.sqrt(2500-r*r);return{left:50-l,right:50+l}},c6=t=>(t||"").replace(/[\^~]/g,"").replace(/\r/g,"").replace(/[^\x00-\x7F]/g,"?"),s6=(t,n,r,l,c,f,u)=>{const h=r/72*100*1.25,v=(t||"").split(`
-`),d=[];return v.forEach((m,p)=>{const _=n+p*h,y=hm(_),S=Math.max(0,Math.round(y.left/100*f)),E=Math.max(10,Math.round((y.right-y.left)/100*f)),k=Math.round(_/100*u),M=Math.max(10,Math.round(r/72*c)),z=Math.round(M*(l>=800?.92:.82)),D=Math.max(0,Math.round(k-M/2)),V=c6(m);V&&d.push(`^FO${S},${D}^A0N,${M},${z}^FB${E},1,0,C,0^FD${V}^FS`)}),d},es=t=>{const n={"০":"0","১":"1","২":"2","৩":"3","৪":"4","৫":"5","৬":"6","৭":"7","৮":"8","৯":"9"};let r="";const l=(t||"").trim();for(let f=0;f<l.length;f++){const u=l[f];n[u]?r+=n[u]:r+=u}const c=parseInt(r);return isNaN(c)?0:c},D2=t=>new Promise((n,r)=>{const l=window;if(!l.BrowserPrint){r(new Error("BROWSERPRINT_NOT_FOUND"));return}l.BrowserPrint.getDefaultDevice("printer",c=>{if(!c){r(new Error("NO_DEFAULT_PRINTER"));return}c.send(t,()=>n(),f=>r(f))},c=>r(c))});function f6(){const t="dbl_label_schedule_data_v3",n="dbl_label_file_path_v3",r="dbl_admin_logged_in_v3",l="dbl_label_3up_active_v3",c="dbl_label_3up_mode_v3",f="dbl_label_3up_left_offset_v3",u="dbl_label_3up_gap_v3",h="dbl_label_3up_top_offset_v3",v="dbl_label_3up_border_v3",d="dbl_printer_mode_v1",m="dbl_printer_dpi_v1",p="dbl_batch_formats_v1",LBL_DIA_KEY="dbl_label_diameter_in_v1",ROT_KEY="dbl_label_rotate180_v1",[_,y]=je.useState(()=>{try{const T=localStorage.getItem(t);if(T){const w=JSON.parse(T);if(Array.isArray(w)&&w.length>0)return w}}catch(T){console.error("Error loading schedule from localStorage:",T)}return l6}),[S,E]=je.useState(()=>localStorage.getItem(n)||"C:\\DBL\\Daily_Schedule.xlsx"),[k,M]=je.useState(()=>localStorage.getItem(r)==="true"),[z,D]=je.useState(()=>{const T=localStorage.getItem(l);return T!==null?T==="true":!0}),[V,ne]=je.useState(()=>localStorage.getItem(c)||"same"),[X,R]=je.useState(()=>{const T=localStorage.getItem(f);return T!==null?parseFloat(T):0}),[te,Y]=je.useState(()=>{const T=localStorage.getItem(u);return T!==null?parseFloat(T):.118}),[he,ce]=je.useState(()=>{const T=localStorage.getItem(h);return T!==null?parseFloat(T):0}),[K,ye]=je.useState(()=>{const T=localStorage.getItem(v);return T!==null?T==="true":!0}),[labelDiaIn,setLabelDiaIn]=je.useState(()=>{const T=localStorage.getItem(LBL_DIA_KEY);return T!==null?parseFloat(T):1}),[rotate180,setRotate180]=je.useState(()=>localStorage.getItem(ROT_KEY)==="true"),[Ce,Ae]=je.useState(()=>localStorage.getItem(d)||"browser"),[q,fe]=je.useState(()=>{const T=localStorage.getItem(m);return T!==null?parseInt(T):203}),[De,Q]=je.useState(!1),[Oe,L]=je.useState(""),[b,j]=je.useState("");je.useEffect(()=>{localStorage.setItem(d,Ce),localStorage.setItem(m,q.toString())},[Ce,q]),je.useEffect(()=>{localStorage.setItem(l,z?"true":"false"),localStorage.setItem(c,V),localStorage.setItem(f,X.toString()),localStorage.setItem(u,te.toString()),localStorage.setItem(h,he.toString()),localStorage.setItem(v,K?"true":"false"),localStorage.setItem(LBL_DIA_KEY,labelDiaIn.toString()),localStorage.setItem(ROT_KEY,rotate180?"true":"false")},[z,V,X,te,he,K,labelDiaIn,rotate180]);const[B,I]=je.useState(""),[se,ge]=je.useState([]),[me,_e]=je.useState(()=>_.length>0?_[0]:null),[Ee,Xe]=je.useState(""),U=es(Ee),vt=z?Math.max(0,Math.ceil(U/3)):Math.max(0,U),[Ge,$e]=je.useState(null),[Ue,be]=je.useState(il),[lt,Nt]=je.useState(ri),[ia,da]=je.useState(()=>{try{const T=localStorage.getItem(p);return T?JSON.parse(T):{}}catch{return{}}}),[Ra,va]=je.useState({sty:"",count:"",col:"",shade:"",batch:""});je.useEffect(()=>{if(me){const T=ia[me.batchno];T?(va(T.texts),be(T.positions),Nt(T.fontSizes)):(va({sty:`Sty: ${me.customerpo||"-"}`,count:`COUNT: ${me.count||"-"}`,col:`Col: ${me.color||"-"}`,shade:`Shade: ${me.shadeno||"-"}`,batch:`Batch: ${me.batchno||"-"}`}),be(il),Nt(ri))}else va({sty:"Sty: SAMPLE-PO-2026",count:"COUNT: 30S COMBED YARN",col:"Col: SHADE BLUE",shade:"Shade: 1024-C",batch:"Batch: 2466818"})},[me]);const ct=T=>{T&&da(w=>{const O={...w,[T]:{texts:{...Ra},positions:JSON.parse(JSON.stringify(Ue)),fontSizes:JSON.parse(JSON.stringify(lt))}};try{localStorage.setItem(p,JSON.stringify(O))}catch{}return O})},[ma,Ma]=je.useState(!1),[ur,kt]=je.useState(""),[ga,ze]=je.useState(""),[gt,Qt]=je.useState(""),[ot,Et]=je.useState(""),[Wt,bt]=je.useState(null),[In,qa]=je.useState(""),[_0,or]=je.useState(!1),Fr=je.useRef(null);je.useEffect(()=>{Xe("")},[me]),je.useEffect(()=>{if(!B.trim()){ge([]);return}const T=B.toLowerCase().trim(),w=_.filter(O=>O.batchno.toLowerCase().includes(T)||O.customerpo.toLowerCase().includes(T));ge(w)},[B,_]);const rn=T=>{T.preventDefault(),ur==="admin"&&ga==="dbl"?(M(!0),localStorage.setItem(r,"true"),Qt(""),kt(""),ze("")):Qt("ভুল ইউজারনেম অথবা পাসওয়ার্ড! আবার চেষ্টা করুন। (User: admin, Pass: dbl)")},Aa=()=>{M(!1),localStorage.setItem(r,"false"),Et(""),qa(""),bt(null)},Nr=T=>(T||"").toString().trim().toLowerCase().replace(/[^a-z0-9]/g,""),Rr=T=>{const w=A2.sheet_to_json(T,{header:1,defval:""});let O=0,F=-1;const N=Math.min(w.length,12);for(let P=0;P<N;P++){const ue=w[P]||[];let W=0;ue.forEach(ee=>{const ae=Nr(ee);O2[ae]&&W++}),W>F&&(F=W,O=P)}return{rowIndex:O,score:F}},E0=T=>{if(!T)return;const w=new FileReader;w.onload=O=>{var F;try{const N=new Uint8Array((F=O.target)==null?void 0:F.result),P=Zu(N,{type:"array"}),ue=P.SheetNames[0],W=P.Sheets[ue],{rowIndex:ee,score:ae}=Rr(W);if(ae<2){qa("ত্রুটি! এই এক্সেল ফাইলে Batch No বা Customer Po কলামগুলোর মিল পাওয়া যায়নি।"),bt(null);return}const pe=A2.sheet_to_json(W,{range:ee,defval:""});if(pe.length===0){qa("ত্রুটি! এক্সেল ফাইলে কোনো ডেটা পাওয়া যায়নি।"),bt(null);return}const Se=pe.map(ke=>{const Te={batchno:"",customerpo:"",color:"",count:"",shadeno:""};return Object.keys(ke).forEach(we=>{const Ne=Nr(we),st=O2[Ne];st&&(Te[st]=ke[we]!==void 0&&ke[we]!==null?ke[we].toString().trim():"")}),Te}).filter(ke=>ke.batchno);if(Se.length===0){qa("ত্রুটি! ফাইলে কোনো বৈধ ব্যাচ ডেটা পাওয়া যায়নি।"),bt(null);return}bt(Se),qa(`✓ সফলভাবে যাচাই করা হয়েছে! (${Se.length} টি ব্যাচ পাওয়া গেছে)। এখন ফাইলটি সংরক্ষণ করতে নিচের "পাথ ও ডাটা সংরক্ষণ করুন" বাটনটি প্রেস করুন।`)}catch(N){console.error(N),qa("ত্রুটি! ফাইলটি প্রসেস করা যায়নি। দয়া করে সঠিক এক্সেল ফাইল দিন।"),bt(null)}},w.readAsArrayBuffer(T)},T0=()=>{Wt&&Wt.length>0?(y(Wt),localStorage.setItem(t,JSON.stringify(Wt)),_e(Wt[0]),bt(null),qa(""),Et("ডাটাবেজ সফলভাবে সংরক্ষণ করা হয়েছে! এখন প্রধান পেজে সার্চ করলে এই ব্যাচসমূহ দেখা যাবে।")):alert("দয়া করে প্রথমে একটি এক্সেল ফাইল আপলোড করুন।"),setTimeout(()=>{Et("")},4e3)},Hn=T=>T?{sty:`Sty:${T.customerpo||"-"}`,count:`COUNT:${T.count||"-"}`,col:`Col:${T.color||"-"}`,shade:`Shade: ${T.shadeno||"-"}`,batch:`Batch: ${T.batchno||"-"}`}:{sty:"Sty: SAMPLE-PO-2026",count:"COUNT: 30S COMBED YARN",col:"Col: SHADE BLUE",shade:"Shade: 1024-C",batch:"Batch: 2466818"},Ba=(T,w)=>{const F=!T||me&&T.batchno===me.batchno?Ra:Hn(T),N=[];return Object.keys(il).forEach(P=>{const ue=Ue[P]||il[P],W=lt[P]||ri[P],ee=C2[P],pe=(F[P]||"").split(`
+`),d=[];return v.forEach((m,p)=>{const _=n+p*h,y=hm(_),S=Math.max(0,Math.round(y.left/100*f)),E=Math.max(10,Math.round((y.right-y.left)/100*f)),k=Math.round(_/100*u),M=Math.max(10,Math.round(r/72*c)),z=Math.round(M*(l>=800?.92:.82)),D=Math.max(0,Math.round(k-M/2)),V=c6(m);V&&d.push(`^FO${S},${D}^A0N,${M},${z}^FB${E},1,0,C,0^FD${V}^FS`)}),d},es=t=>{const n={"০":"0","১":"1","২":"2","৩":"3","৪":"4","৫":"5","৬":"6","৭":"7","৮":"8","৯":"9"};let r="";const l=(t||"").trim();for(let f=0;f<l.length;f++){const u=l[f];n[u]?r+=n[u]:r+=u}const c=parseInt(r);return isNaN(c)?0:c},D2=t=>new Promise((n,r)=>{const l=window;if(!l.BrowserPrint){r(new Error("BROWSERPRINT_NOT_FOUND"));return}l.BrowserPrint.getDefaultDevice("printer",c=>{if(!c){r(new Error("NO_DEFAULT_PRINTER"));return}c.send(t,()=>n(),f=>r(f))},c=>r(c))});function f6(){const t="dbl_label_schedule_data_v3",n="dbl_label_file_path_v3",r="dbl_admin_logged_in_v3",l="dbl_label_3up_active_v3",c="dbl_label_3up_mode_v3",f="dbl_label_3up_left_offset_v3",u="dbl_label_3up_gap_v3",h="dbl_label_3up_top_offset_v3",v="dbl_label_3up_border_v3",d="dbl_printer_mode_v1",m="dbl_printer_dpi_v1",p="dbl_batch_formats_v1",LBL_DIA_KEY="dbl_label_diameter_in_v1",ROT_KEY="dbl_label_rotate180_v1",SYS_NAME_KEY="dbl_system_headline_v1",LOGO_KEY="dbl_system_logo_v1",[_,y]=je.useState(()=>{try{const T=localStorage.getItem(t);if(T){const w=JSON.parse(T);if(Array.isArray(w)&&w.length>0)return w}}catch(T){console.error("Error loading schedule from localStorage:",T)}return l6}),[S,E]=je.useState(()=>localStorage.getItem(n)||"C:\\DBL\\Daily_Schedule.xlsx"),[k,M]=je.useState(()=>localStorage.getItem(r)==="true"),[z,D]=je.useState(()=>{const T=localStorage.getItem(l);return T!==null?T==="true":!0}),[V,ne]=je.useState(()=>localStorage.getItem(c)||"same"),[X,R]=je.useState(()=>{const T=localStorage.getItem(f);return T!==null?parseFloat(T):0}),[te,Y]=je.useState(()=>{const T=localStorage.getItem(u);return T!==null?parseFloat(T):.118}),[he,ce]=je.useState(()=>{const T=localStorage.getItem(h);return T!==null?parseFloat(T):0}),[K,ye]=je.useState(()=>{const T=localStorage.getItem(v);return T!==null?T==="true":!0}),[labelDiaIn,setLabelDiaIn]=je.useState(()=>{const T=localStorage.getItem(LBL_DIA_KEY);return T!==null?parseFloat(T):1}),[rotate180,setRotate180]=je.useState(()=>localStorage.getItem(ROT_KEY)==="true"),[sysName,setSysName]=je.useState(()=>localStorage.getItem(SYS_NAME_KEY)||"ব্যাচ লেবেল প্রিন্ট সিস্টেম"),[logoDataUrl,setLogoDataUrl]=je.useState(()=>localStorage.getItem(LOGO_KEY)||""),[Ce,Ae]=je.useState(()=>localStorage.getItem(d)||"browser"),[q,fe]=je.useState(()=>{const T=localStorage.getItem(m);return T!==null?parseInt(T):203}),[De,Q]=je.useState(!1),[Oe,L]=je.useState(""),[b,j]=je.useState("");je.useEffect(()=>{localStorage.setItem(d,Ce),localStorage.setItem(m,q.toString())},[Ce,q]),je.useEffect(()=>{localStorage.setItem(l,z?"true":"false"),localStorage.setItem(c,V),localStorage.setItem(f,X.toString()),localStorage.setItem(u,te.toString()),localStorage.setItem(h,he.toString()),localStorage.setItem(v,K?"true":"false"),localStorage.setItem(LBL_DIA_KEY,labelDiaIn.toString()),localStorage.setItem(ROT_KEY,rotate180?"true":"false")},[z,V,X,te,he,K,labelDiaIn,rotate180]);const[B,I]=je.useState(""),[se,ge]=je.useState([]),[me,_e]=je.useState(()=>_.length>0?_[0]:null),[Ee,Xe]=je.useState(""),U=es(Ee),vt=z?Math.max(0,Math.ceil(U/3)):Math.max(0,U),[Ge,$e]=je.useState(null),[Ue,be]=je.useState(il),[lt,Nt]=je.useState(ri),[ia,da]=je.useState(()=>{try{const T=localStorage.getItem(p);return T?JSON.parse(T):{}}catch{return{}}}),[Ra,va]=je.useState({sty:"",count:"",col:"",shade:"",batch:""});je.useEffect(()=>{if(me){const T=ia[me.batchno];T?(va(T.texts),be(T.positions),Nt(T.fontSizes)):(va({sty:`Sty: ${me.customerpo||"-"}`,count:`COUNT: ${me.count||"-"}`,col:`Col: ${me.color||"-"}`,shade:`Shade: ${me.shadeno||"-"}`,batch:`Batch: ${me.batchno||"-"}`}),be(il),Nt(ri))}else va({sty:"Sty: SAMPLE-PO-2026",count:"COUNT: 30S COMBED YARN",col:"Col: SHADE BLUE",shade:"Shade: 1024-C",batch:"Batch: 2466818"})},[me]);const ct=T=>{T&&da(w=>{const O={...w,[T]:{texts:{...Ra},positions:JSON.parse(JSON.stringify(Ue)),fontSizes:JSON.parse(JSON.stringify(lt))}};try{localStorage.setItem(p,JSON.stringify(O))}catch{}return O})},[ma,Ma]=je.useState(!1),[ur,kt]=je.useState(""),[ga,ze]=je.useState(""),[gt,Qt]=je.useState(""),[ot,Et]=je.useState(""),[Wt,bt]=je.useState(null),[In,qa]=je.useState(""),[_0,or]=je.useState(!1),Fr=je.useRef(null);je.useEffect(()=>{Xe("")},[me]),je.useEffect(()=>{if(!B.trim()){ge([]);return}const T=B.toLowerCase().trim(),w=_.filter(O=>O.batchno.toLowerCase().includes(T)||O.customerpo.toLowerCase().includes(T));ge(w)},[B,_]);const rn=T=>{T.preventDefault(),ur==="admin"&&ga==="dbl"?(M(!0),localStorage.setItem(r,"true"),Qt(""),kt(""),ze("")):Qt("ভুল ইউজারনেম অথবা পাসওয়ার্ড! আবার চেষ্টা করুন।")},Aa=()=>{M(!1),localStorage.setItem(r,"false"),Et(""),qa(""),bt(null)},Nr=T=>(T||"").toString().trim().toLowerCase().replace(/[^a-z0-9]/g,""),Rr=T=>{const w=A2.sheet_to_json(T,{header:1,defval:""});let O=0,F=-1;const N=Math.min(w.length,12);for(let P=0;P<N;P++){const ue=w[P]||[];let W=0;ue.forEach(ee=>{const ae=Nr(ee);O2[ae]&&W++}),W>F&&(F=W,O=P)}return{rowIndex:O,score:F}},E0=T=>{if(!T)return;const w=new FileReader;w.onload=O=>{var F;try{const N=new Uint8Array((F=O.target)==null?void 0:F.result),P=Zu(N,{type:"array"}),ue=P.SheetNames[0],W=P.Sheets[ue],{rowIndex:ee,score:ae}=Rr(W);if(ae<2){qa("ত্রুটি! এই এক্সেল ফাইলে Batch No বা Customer Po কলামগুলোর মিল পাওয়া যায়নি।"),bt(null);return}const pe=A2.sheet_to_json(W,{range:ee,defval:""});if(pe.length===0){qa("ত্রুটি! এক্সেল ফাইলে কোনো ডেটা পাওয়া যায়নি।"),bt(null);return}const Se=pe.map(ke=>{const Te={batchno:"",customerpo:"",color:"",count:"",shadeno:""};return Object.keys(ke).forEach(we=>{const Ne=Nr(we),st=O2[Ne];st&&(Te[st]=ke[we]!==void 0&&ke[we]!==null?ke[we].toString().trim():"")}),Te}).filter(ke=>ke.batchno);if(Se.length===0){qa("ত্রুটি! ফাইলে কোনো বৈধ ব্যাচ ডেটা পাওয়া যায়নি।"),bt(null);return}bt(Se),qa(`✓ সফলভাবে যাচাই করা হয়েছে! (${Se.length} টি ব্যাচ পাওয়া গেছে)। এখন ফাইলটি সংরক্ষণ করতে নিচের "পাথ ও ডাটা সংরক্ষণ করুন" বাটনটি প্রেস করুন।`)}catch(N){console.error(N),qa("ত্রুটি! ফাইলটি প্রসেস করা যায়নি। দয়া করে সঠিক এক্সেল ফাইল দিন।"),bt(null)}},w.readAsArrayBuffer(T)},T0=()=>{Wt&&Wt.length>0?(y(Wt),localStorage.setItem(t,JSON.stringify(Wt)),_e(Wt[0]),bt(null),qa(""),Et("ডাটাবেজ সফলভাবে সংরক্ষণ করা হয়েছে! এখন প্রধান পেজে সার্চ করলে এই ব্যাচসমূহ দেখা যাবে।")):alert("দয়া করে প্রথমে একটি এক্সেল ফাইল আপলোড করুন।"),setTimeout(()=>{Et("")},4e3)},Hn=T=>T?{sty:`Sty:${T.customerpo||"-"}`,count:`COUNT:${T.count||"-"}`,col:`Col:${T.color||"-"}`,shade:`Shade: ${T.shadeno||"-"}`,batch:`Batch: ${T.batchno||"-"}`}:{sty:"Sty: SAMPLE-PO-2026",count:"COUNT: 30S COMBED YARN",col:"Col: SHADE BLUE",shade:"Shade: 1024-C",batch:"Batch: 2466818"},Ba=(T,w)=>{const F=!T||me&&T.batchno===me.batchno?Ra:Hn(T),N=[];return Object.keys(il).forEach(P=>{const ue=Ue[P]||il[P],W=lt[P]||ri[P],ee=C2[P],pe=(F[P]||"").split(`
 `),Se=[],ke=W/72*100*1.25;pe.forEach((Te,we)=>{Se.push({text:Te,x:ue.x,y:ue.y+we*ke})}),Se.forEach((Te,we)=>{N.push({key:P,text:Te.text,x:Te.x,y:Te.y,fontSizePt:W*w,weight:ee,idx:we})})}),N},di=(T,w)=>{w.preventDefault();const O=Fr.current;if(!O)return;$e(T);const F=O.getBoundingClientRect(),N=ue=>{let W=(ue.clientX-F.left)/F.width*100,ee=(ue.clientY-F.top)/F.height*100;ee=Math.max(2,Math.min(98,ee));const ae=hm(ee);W=Math.max(ae.left+1,Math.min(ae.right-1,W)),be(pe=>({...pe,[T]:{x:W,y:ee}}))},P=()=>{$e(null),document.removeEventListener("pointermove",N),document.removeEventListener("pointerup",P)};document.addEventListener("pointermove",N),document.addEventListener("pointerup",P)},jn=(T,w)=>{const F=lt[T],N=w?Math.min(14,F+.5):Math.max(3,F-.5);Nt(P=>({...P,[T]:Math.round(N*10)/10}))},nn=()=>{be(JSON.parse(JSON.stringify(il)))},y0=()=>{Nt(JSON.parse(JSON.stringify(ri)))},ln=()=>{const T=q,w=T,O=T,F=Math.max(1,es(Ee)||1);let N=`^XA
 ^CI28
 `;return N+=`^PW${w}
@@ -298,7 +769,7 @@ Error generating stack: `+s.message+`
             white-space: nowrap !important;
           }
         }
-      `}),J.jsx("div",{className:"no-print min-h-screen bg-slate-100 flex flex-col items-center justify-start p-3 sm:p-5 text-slate-800 font-sans selection:bg-brand-accent selection:text-white",children:J.jsxs("div",{className:"w-full max-w-4xl bg-white rounded-2xl border border-slate-200/80 shadow-md overflow-hidden",children:[J.jsxs("header",{className:"bg-slate-900 px-5 py-3.5 text-white flex items-center justify-between border-b border-slate-800",children:[J.jsxs("div",{className:"flex items-center gap-2.5",children:[J.jsx("div",{className:"w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center text-white shadow-md shadow-brand-accent/25",children:J.jsx(b2,{className:"w-4.5 h-4.5 text-white"})}),J.jsx("div",{children:J.jsxs("h1",{className:"text-base font-extrabold tracking-tight font-cond flex items-center gap-2",children:["ব্যাচ লেবেল প্রিন্ট সিস্টেম",J.jsx("span",{className:"text-[9px] font-mono tracking-widest font-bold bg-brand-accent/30 text-brand-accent px-1.5 py-0.5 rounded border border-brand-accent/35",children:"COMPACT V3"})]})})]}),J.jsx("div",{className:"flex items-center gap-2",children:J.jsxs("button",{onClick:()=>Ma(!ma),className:`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${ma?"bg-brand-accent text-white shadow-sm":"bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700"}`,children:[k?J.jsx(j8,{className:"w-3.5 h-3.5 text-emerald-400"}):J.jsx(k2,{className:"w-3.5 h-3.5 text-brand-accent"}),J.jsx("span",{children:k?"অ্যাডমিন ড্যাশবোর্ড":"অ্যাডমিন লগইন"})]})})]}),ma&&J.jsxs("div",{className:"bg-slate-50 border-b border-slate-200 p-5 animate-in slide-in-from-top-4 duration-200",children:[J.jsxs("div",{className:"flex items-center justify-between mb-3 pb-2 border-b border-slate-200/60",children:[J.jsxs("h3",{className:"text-xs font-black tracking-wider uppercase text-slate-900 flex items-center gap-2",children:[J.jsx($8,{className:"w-4 h-4 text-brand-accent animate-spin-slow"}),"অ্যাডমিন প্যানেল কনফিগারেশন (Admin Database & Path Configuration)"]}),k&&J.jsxs("button",{onClick:Aa,className:"flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold text-xs",children:[J.jsx(V8,{className:"w-3.5 h-3.5"}),J.jsx("span",{children:"লগআউট"})]})]}),k?J.jsxs("div",{className:"space-y-4",children:[J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1.5 tracking-wide",children:"এক্সেল শিডিউল ফাইল আপলোড করুন (Excel Database Sheet Source)"}),J.jsxs("div",{onDragOver:T=>{T.preventDefault(),or(!0)},onDragLeave:()=>or(!1),onDrop:T=>{T.preventDefault(),or(!1),T.dataTransfer.files.length&&E0(T.dataTransfer.files[0])},className:`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition text-xs ${_0?"border-brand-accent bg-orange-50/40":"border-slate-300 hover:border-brand-steel bg-white"}`,onClick:()=>{var T;return(T=document.getElementById("admin-excel-uploader"))==null?void 0:T.click()},children:[J.jsx("input",{type:"file",id:"admin-excel-uploader",className:"hidden",accept:".xlsx,.xls,.csv",onChange:T=>{var w;(w=T.target.files)!=null&&w.length&&E0(T.target.files[0])}}),J.jsxs("div",{className:"flex flex-col items-center justify-center gap-2 text-slate-600 py-3",children:[J.jsx(i6,{className:"w-8 h-8 text-brand-steel mb-1 shrink-0"}),J.jsx("span",{className:"font-bold text-slate-800 text-sm",children:"ব্রাউজ বা ড্র্যাগ করে এক্সেল নির্বাচন করুন"}),J.jsx("span",{className:"text-[10px] text-slate-400 font-medium",children:"সমর্থিত ফরম্যাট: .xlsx, .xls, .csv"})]})]})]}),In&&J.jsx("div",{className:`p-3 rounded-lg text-xs border ${In.startsWith("✓")?"bg-emerald-50 border-emerald-200 text-emerald-800":"bg-rose-50 border-rose-200 text-rose-800"}`,children:In}),ot&&J.jsxs("div",{className:"p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg font-medium flex items-center gap-2",children:[J.jsx(U8,{className:"w-4 h-4 text-emerald-600"}),J.jsx("span",{children:ot})]}),J.jsxs("div",{className:"pt-2 border-t border-slate-200/50 flex items-center justify-between",children:[J.jsx("span",{className:"text-[11px] text-slate-400",children:"* এক্সেল আপলোড করে ডাটা সংরক্ষণ করলে তা ব্রাউজারে পার্মানেন্টলি স্টোর থাকবে। পেজ রিলোড দিলেও ডাটা হারিয়ে যাবে না।"}),J.jsx("button",{onClick:T0,className:"bg-brand-accent hover:bg-brand-accent/95 active:scale-[0.98] text-white text-xs font-bold px-5 py-2 rounded-lg shadow-md transition",children:"ডাটা সংরক্ষণ করুন (Save Database)"})]})]}):J.jsxs("form",{onSubmit:rn,className:"max-w-md mx-auto space-y-3 py-3",children:[J.jsxs("div",{className:"text-xs text-slate-500 text-center mb-1",children:["অ্যাডমিন প্রিপেড শিডিউল এবং ফাইল পাথ কনফিগার করতে নিচে লগইন করুন। ",J.jsx("br",{}),J.jsxs("span",{className:"text-brand-accent font-semibold",children:["(ইউজারনেম: ",J.jsx("code",{className:"font-mono bg-orange-50 px-1 py-0.5 rounded text-orange-700",children:"admin"}),", পাসওয়ার্ড: ",J.jsx("code",{className:"font-mono bg-orange-50 px-1 py-0.5 rounded text-orange-700",children:"dbl"}),")"]})]}),J.jsxs("div",{className:"grid grid-cols-2 gap-3",children:[J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1",children:"ইউজারনেম (Username)"}),J.jsx("input",{type:"text",required:!0,value:ur,onChange:T=>kt(T.target.value),placeholder:"Username",className:"w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:border-brand-steel text-xs font-mono"})]}),J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1",children:"পাসওয়ার্ড (Password)"}),J.jsx("input",{type:"password",required:!0,value:ga,onChange:T=>ze(T.target.value),placeholder:"Password",className:"w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:border-brand-steel text-xs font-mono"})]})]}),gt&&J.jsx("p",{className:"text-rose-600 text-xs text-center font-medium",children:gt}),J.jsxs("button",{type:"submit",className:"w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded text-xs transition mt-2 flex items-center justify-center gap-1.5 shadow",children:[J.jsx(k2,{className:"w-3.5 h-3.5 text-brand-accent"}),J.jsx("span",{children:"লগইন করুন"})]})]})]}),J.jsx("section",{className:"bg-slate-50 border-b border-slate-200/80 px-5 py-4 flex flex-col md:flex-row items-center justify-between gap-4",children:J.jsxs("div",{className:"w-full md:w-auto flex-shrink-0",children:[J.jsx("label",{className:"block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5",children:"ব্যাচ নাম্বার দিয়ে সার্চ করুন (Search Batch No)"}),J.jsxs("div",{className:"relative w-full md:w-[260px]",children:[J.jsx("div",{className:"absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400",children:J.jsx(W8,{className:"w-4 h-4"})}),J.jsx("input",{type:"text",placeholder:"যেমন: 2466818...",value:B,onChange:T=>I(T.target.value),className:"w-full pl-9 pr-4 py-2 bg-white border border-slate-300 focus:border-brand-steel rounded-lg focus:outline-none focus:ring-4 focus:ring-brand-steel/10 transition text-sm font-bold tracking-wide text-slate-900 placeholder-slate-400"}),B.trim()&&J.jsx("div",{className:"absolute left-0 right-0 mt-1 border border-slate-200 rounded-lg overflow-hidden max-h-[160px] overflow-y-auto bg-white shadow-lg z-50",children:se.length>0?se.map((T,w)=>J.jsx("button",{onClick:()=>{_e(T),I("")},className:`w-full text-left px-3.5 py-2 text-xs border-b border-slate-100 last:border-0 hover:bg-slate-50 transition flex flex-col gap-0.5 ${(me==null?void 0:me.batchno)===T.batchno?"bg-blue-50/40 font-bold border-l-2 border-l-brand-steel":"bg-white"}`,children:J.jsxs("div",{className:"flex items-center justify-between",children:[J.jsx("span",{className:"font-bold text-slate-900 font-mono tracking-wide",children:T.batchno}),J.jsxs("span",{className:"text-[9px] text-slate-400 truncate max-w-[120px]",children:["PO: ",T.customerpo||"-"]})]})},`${T.batchno}-${T.customerpo}-${w}`)):J.jsx("div",{className:"p-3 text-center text-xs text-slate-500",children:"কোনো ম্যাচিং ব্যাচ পাওয়া যায়নি।"})})]})]})}),J.jsxs("div",{className:"grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-200",children:[J.jsxs("div",{className:"md:col-span-5 p-5 flex flex-col justify-between space-y-4",children:[J.jsx("div",{className:"space-y-4",children:J.jsxs("div",{className:"space-y-2",children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold tracking-wider text-slate-400",children:"১. লেবেলের লেখা পরিবর্তন ও ম্যানুয়াল লাইন ব্রেক (Edit Texts)"}),J.jsx("div",{className:"space-y-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 text-xs",children:Object.keys(ri).map(T=>{var w;return J.jsxs("div",{className:"space-y-1",children:[J.jsxs("div",{className:"flex items-center justify-between font-bold text-slate-600 text-[10px] uppercase",children:[J.jsx("span",{children:T==="sty"?"Sty (Style)":T==="count"?"Count (Yarn)":T==="col"?"Col (Color)":T==="shade"?"Shade No":"Batch No"}),J.jsx("span",{className:"text-[9px] text-slate-400 font-normal",children:"Enter চাপলে পরের লাইনে যাবে"})]}),J.jsx("textarea",{rows:(w=Ra[T])!=null&&w.includes(`
+      `}),J.jsx("div",{className:"no-print min-h-screen bg-slate-100 flex flex-col items-center justify-start p-3 sm:p-5 text-slate-800 font-sans selection:bg-brand-accent selection:text-white",children:J.jsxs("div",{className:"w-full max-w-4xl bg-white rounded-2xl border border-slate-200/80 shadow-md overflow-hidden",children:[J.jsxs("header",{style:{background:"#0f172a",color:"#fff",padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #1e293b",gap:"10px"},children:[J.jsx("div",{style:{flexShrink:0,display:"flex",alignItems:"center"},children:logoDataUrl?J.jsx("img",{src:logoDataUrl,alt:"logo",style:{width:"32px",height:"32px",objectFit:"contain",borderRadius:"8px",background:"rgba(255,255,255,0.1)"}}):J.jsx("div",{style:{width:"32px",height:"32px",borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--color-brand-accent,#f97316)"},children:J.jsx(b2,{style:{width:"18px",height:"18px",color:"#fff"}})})}),J.jsx("h1",{style:{flex:1,textAlign:"center",fontSize:"22px",lineHeight:"38px",fontWeight:800,letterSpacing:"-0.01em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",margin:0},className:"font-cond",children:sysName}),J.jsx("button",{onClick:()=>Ma(!ma),title:k?"অ্যাডমিন ড্যাশবোর্ড":"অ্যাডমিন লগইন",style:{flexShrink:0,width:"32px",height:"32px",borderRadius:"9999px",display:"flex",alignItems:"center",justifyContent:"center",background:ma?"var(--color-brand-accent,#f97316)":"#1e293b",border:"1px solid #334155",cursor:"pointer"},children:k?J.jsx(j8,{style:{width:"15px",height:"15px",color:"#34d399"}}):J.jsx(k2,{style:{width:"15px",height:"15px",color:ma?"#fff":"var(--color-brand-accent,#f97316)"}})})]}),ma&&J.jsxs("div",{className:"bg-slate-50 border-b border-slate-200 p-5 animate-in slide-in-from-top-4 duration-200",children:[J.jsxs("div",{className:"flex items-center justify-between mb-3 pb-2 border-b border-slate-200/60",children:[J.jsxs("h3",{className:"text-xs font-black tracking-wider uppercase text-slate-900 flex items-center gap-2",children:[J.jsx($8,{className:"w-4 h-4 text-brand-accent animate-spin-slow"}),"অ্যাডমিন প্যানেল (Admin Settings)"]}),k&&J.jsxs("button",{onClick:Aa,className:"flex items-center gap-1 text-rose-600 hover:text-rose-700 font-bold text-xs",children:[J.jsx(V8,{className:"w-3.5 h-3.5"}),J.jsx("span",{children:"লগআউট"})]})]}),k?J.jsxs("div",{className:"space-y-4",children:[J.jsxs("div",{className:"p-4 bg-white border border-slate-200 rounded-lg space-y-3",children:[J.jsx("h4",{className:"text-[11px] font-black uppercase tracking-wide text-slate-700 mb-1",children:"লোগো ও হেডলাইন (Logo & Headline)"}),J.jsxs("div",{className:"flex items-center gap-3",children:[logoDataUrl?J.jsx("img",{src:logoDataUrl,alt:"logo preview",style:{width:"48px",height:"48px",objectFit:"contain",borderRadius:"8px",background:"#f8fafc"},className:"border border-slate-200"}):J.jsx("div",{style:{width:"48px",height:"48px"},className:"rounded-lg bg-brand-accent flex items-center justify-center text-white shrink-0",children:J.jsx(b2,{style:{width:"20px",height:"20px"}})}),J.jsxs("div",{className:"flex items-center gap-2",children:[J.jsx("button",{onClick:()=>{var T;return(T=document.getElementById("admin-logo-uploader"))==null?void 0:T.click()},className:"text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700",children:"লোগো পরিবর্তন করুন"}),J.jsx("input",{type:"file",id:"admin-logo-uploader",className:"hidden",accept:"image/*",onChange:T=>{const w=T.target.files&&T.target.files[0];if(!w)return;const F=new FileReader;F.onload=N=>{var P;const ee=(P=N.target)==null?void 0:P.result;setLogoDataUrl(ee),localStorage.setItem(LOGO_KEY,ee)},F.readAsDataURL(w)}}),logoDataUrl&&J.jsx("button",{onClick:()=>{setLogoDataUrl(""),localStorage.removeItem(LOGO_KEY)},className:"text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600",children:"লোগো মুছুন"})]})]}),J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1.5 tracking-wide",children:"হেডলাইন / সিস্টেম নাম (System Headline Name)"}),J.jsxs("div",{className:"flex items-center gap-2",children:[J.jsx("input",{type:"text",value:sysName,onChange:T=>setSysName(T.target.value),placeholder:"যেমন: ব্যাচ লেবেল প্রিন্ট সিস্টেম",className:"flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-brand-steel text-sm font-bold"}),J.jsx("button",{onClick:()=>{localStorage.setItem(SYS_NAME_KEY,sysName),Et("হেডলাইন সফলভাবে সংরক্ষণ করা হয়েছে!"),setTimeout(()=>Et(""),3e3)},className:"bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg shrink-0",children:"সংরক্ষণ করুন"})]})]})]})]}):J.jsxs("form",{onSubmit:rn,className:"max-w-md mx-auto space-y-3 py-3",children:[J.jsxs("div",{className:"text-xs text-slate-500 text-center mb-1",children:"অ্যাডমিন সেটিংস পরিবর্তন করতে নিচে লগইন করুন।"}),J.jsxs("div",{className:"grid grid-cols-2 gap-3",children:[J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1",children:"ইউজারনেম (Username)"}),J.jsx("input",{type:"text",required:!0,value:ur,onChange:T=>kt(T.target.value),placeholder:"Username",className:"w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:border-brand-steel text-xs font-mono"})]}),J.jsxs("div",{children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold text-slate-500 mb-1",children:"পাসওয়ার্ড (Password)"}),J.jsx("input",{type:"password",required:!0,value:ga,onChange:T=>ze(T.target.value),placeholder:"Password",className:"w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:border-brand-steel text-xs font-mono"})]})]}),gt&&J.jsx("p",{className:"text-rose-600 text-xs text-center font-medium",children:gt}),J.jsxs("button",{type:"submit",className:"w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 rounded text-xs transition mt-2 flex items-center justify-center gap-1.5 shadow",children:[J.jsx(k2,{className:"w-3.5 h-3.5 text-brand-accent"}),J.jsx("span",{children:"লগইন করুন"})]})]})]}),J.jsxs("section",{className:"bg-slate-50 border-b border-slate-200/80 px-5 py-4 flex flex-col md:flex-row items-center justify-between gap-4",children:[J.jsxs("div",{className:"w-full md:w-auto flex-shrink-0",children:[J.jsx("label",{className:"block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5",children:"ব্যাচ নাম্বার দিয়ে সার্চ করুন (Search Batch No)"}),J.jsxs("div",{className:"relative w-full md:w-[260px]",children:[J.jsx("div",{className:"absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400",children:J.jsx(W8,{className:"w-4 h-4"})}),J.jsx("input",{type:"text",placeholder:"যেমন: 2466818...",value:B,onChange:T=>I(T.target.value),className:"w-full pl-9 pr-4 py-2 bg-white border border-slate-300 focus:border-brand-steel rounded-lg focus:outline-none focus:ring-4 focus:ring-brand-steel/10 transition text-sm font-bold tracking-wide text-slate-900 placeholder-slate-400"}),B.trim()&&J.jsx("div",{className:"absolute left-0 right-0 mt-1 border border-slate-200 rounded-lg overflow-hidden max-h-[160px] overflow-y-auto bg-white shadow-lg z-50",children:se.length>0?se.map((T,w)=>J.jsx("button",{onClick:()=>{_e(T),I("")},className:`w-full text-left px-3.5 py-2 text-xs border-b border-slate-100 last:border-0 hover:bg-slate-50 transition flex flex-col gap-0.5 ${(me==null?void 0:me.batchno)===T.batchno?"bg-blue-50/40 font-bold border-l-2 border-l-brand-steel":"bg-white"}`,children:J.jsxs("div",{className:"flex items-center justify-between",children:[J.jsx("span",{className:"font-bold text-slate-900 font-mono tracking-wide",children:T.batchno}),J.jsxs("span",{className:"text-[9px] text-slate-400 truncate max-w-[120px]",children:["PO: ",T.customerpo||"-"]})]})},`${T.batchno}-${T.customerpo}-${w}`)):J.jsx("div",{className:"p-3 text-center text-xs text-slate-500",children:"কোনো ম্যাচিং ব্যাচ পাওয়া যায়নি।"})})]})]}),J.jsxs("div",{className:"w-full md:w-auto flex flex-col items-center md:items-end gap-1.5",children:[J.jsx("label",{className:"block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 md:text-right",children:"এক্সেল শিডিউল ফাইল আপলোড (Excel Upload)"}),J.jsxs("div",{className:"flex items-center gap-2",children:[J.jsx("input",{type:"file",id:"home-excel-uploader",className:"hidden",accept:".xlsx,.xls,.csv",onChange:T=>{var w;(w=T.target.files)!=null&&w.length&&E0(T.target.files[0])}}),J.jsxs("button",{onClick:()=>{var T;return(T=document.getElementById("home-excel-uploader"))==null?void 0:T.click()},className:"flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition",children:[J.jsx(i6,{className:"w-3.5 h-3.5 text-brand-steel"}),J.jsx("span",{children:"এক্সেল ফাইল আপলোড করুন"})]}),Wt&&Wt.length>0&&J.jsxs("button",{onClick:T0,className:"flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-accent hover:bg-brand-accent/95 active:scale-[0.98] text-white text-xs font-bold shadow-md transition",children:[J.jsx(U8,{className:"w-3.5 h-3.5"}),J.jsx("span",{children:"সংরক্ষণ করুন"})]})]}),In&&J.jsx("div",{className:`max-w-[260px] text-[10px] px-2 py-1 rounded-md border ${In.startsWith("✓")?"bg-emerald-50 border-emerald-200 text-emerald-800":"bg-rose-50 border-rose-200 text-rose-800"}`,children:In}),ot&&J.jsx("div",{className:"max-w-[260px] text-[10px] px-2 py-1 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-800 font-medium",children:ot})]})]}),J.jsxs("div",{className:"grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-200",children:[J.jsxs("div",{className:"md:col-span-5 p-5 flex flex-col justify-between space-y-4",children:[J.jsx("div",{className:"space-y-4",children:J.jsxs("div",{className:"space-y-2",children:[J.jsx("label",{className:"block text-[10px] uppercase font-bold tracking-wider text-slate-400",children:"১. লেবেলের লেখা পরিবর্তন ও ম্যানুয়াল লাইন ব্রেক (Edit Texts)"}),J.jsx("div",{className:"space-y-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 text-xs",children:Object.keys(ri).map(T=>{var w;return J.jsxs("div",{className:"space-y-1",children:[J.jsxs("div",{className:"flex items-center justify-between font-bold text-slate-600 text-[10px] uppercase",children:[J.jsx("span",{children:T==="sty"?"Sty (Style)":T==="count"?"Count (Yarn)":T==="col"?"Col (Color)":T==="shade"?"Shade No":"Batch No"}),J.jsx("span",{className:"text-[9px] text-slate-400 font-normal",children:"Enter চাপলে পরের লাইনে যাবে"})]}),J.jsx("textarea",{rows:(w=Ra[T])!=null&&w.includes(`
 `)?2:1,value:Ra[T]||"",onChange:O=>{const F=O.target.value;va(N=>({...N,[T]:F}))},className:"w-full text-xs font-mono p-1.5 border border-slate-200 focus:ring-1 focus:ring-brand-steel/35 focus:border-brand-steel rounded bg-white shadow-3xs focus:outline-none resize-none leading-normal",placeholder:`${T.toUpperCase()} text...`})]},`edit-field-${T}`)})})]})}),me&&J.jsxs("div",{className:"pt-4 border-t border-slate-100 space-y-3",children:[J.jsxs("div",{className:"flex items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/50",children:[J.jsxs("div",{className:"flex flex-col",children:[J.jsx("span",{className:"text-xs font-bold text-slate-500 uppercase tracking-wider",children:"প্রিন্ট পিস সংখ্যা (Label Qty)"}),z&&Ee&&J.jsxs("span",{className:"text-[10px] text-brand-steel font-bold",children:[Math.ceil(es(Ee)/3)," টি রো প্রিন্ট হবে"]})]}),J.jsx("input",{type:"text",inputMode:"numeric",placeholder:"পিস সংখ্যা (যেমন: ৩, ৬, ৯)",value:Ee,onChange:T=>Xe(T.target.value),className:"w-44 text-right text-xs font-bold font-mono text-slate-900 bg-white border border-slate-300 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-brand-steel/30"})]}),J.jsxs("div",{className:"bg-slate-50 p-2.5 rounded-xl border border-slate-200/50 space-y-2",children:[J.jsx("span",{className:"text-xs font-bold text-slate-500 uppercase tracking-wider block",children:"প্রিন্টার মোড (Printer Mode)"}),J.jsxs("div",{className:"flex gap-2",children:[J.jsx("button",{onClick:()=>Ae("browser"),className:`flex-1 text-[11px] font-bold py-1.5 rounded-lg border transition ${Ce==="browser"?"bg-brand-accent text-white border-brand-accent":"bg-white text-slate-500 border-slate-300"}`,children:"ব্রাউজার প্রিন্ট (GDI)"}),J.jsx("button",{onClick:()=>Ae("zpl"),className:`flex-1 text-[11px] font-bold py-1.5 rounded-lg border transition ${Ce==="zpl"?"bg-brand-accent text-white border-brand-accent":"bg-white text-slate-500 border-slate-300"}`,children:"Zebra ZPL (Direct)"})]}),Ce==="zpl"&&J.jsxs("div",{className:"flex items-center justify-between gap-2 pt-1",children:[J.jsx("span",{className:"text-[10px] font-bold text-slate-500",children:"প্রিন্টার DPI:"}),J.jsx("div",{className:"flex gap-1.5",children:[203,300].map(T=>J.jsxs("button",{onClick:()=>fe(T),className:`text-[10.5px] font-bold px-2.5 py-1 rounded-md border ${q===T?"bg-slate-800 text-white border-slate-800":"bg-white text-slate-500 border-slate-300"}`,children:[T," DPI"]},T))})]})]}),J.jsxs("button",{onClick:Gn,className:"w-full flex items-center justify-center gap-2 bg-brand-accent hover:bg-brand-accent/95 active:scale-[0.98] text-white font-black py-2.5 rounded-xl shadow-md transition duration-150 text-sm",children:[J.jsx(b2,{className:"w-4 h-4 text-white"}),J.jsx("span",{children:Ce==="zpl"?"Zebra প্রিন্টারে পাঠান (Send ZPL)":"লেবেল প্রিন্ট করুন (Print Labels)"})]}),Ce==="zpl"&&J.jsxs(J.Fragment,{children:[b==="sending"&&J.jsx("div",{className:"text-[11px] font-bold text-center text-slate-500",children:"প্রিন্টারে পাঠানো হচ্ছে..."}),b==="sent"&&J.jsx("div",{className:"text-[11px] font-bold text-center text-emerald-600",children:"✓ প্রিন্টারে পাঠানো হয়েছে!"}),b==="failed"&&J.jsx("div",{className:"text-[11px] font-bold text-center text-red-500",children:"Browser Print খুঁজে পাওয়া যায়নি বা প্রিন্টার সংযুক্ত নেই। নিচে ম্যানুয়াল ZPL কোড দেখুন।"}),J.jsx("button",{onClick:()=>{L(ln()),Q(!0)},className:"w-full text-[11px] font-bold text-brand-steel hover:underline text-center py-1",children:"ZPL কোড প্রিভিউ দেখুন / ম্যানুয়ালি কপি করুন"})]}),J.jsx("div",{className:"text-[10px] text-slate-600 font-semibold text-center leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-200/50",children:Ce==="zpl"?J.jsxs(J.Fragment,{children:["ℹ️ ",J.jsx("strong",{children:"Zebra ZPL মোড:"}),' এই মোড কাজ করার জন্য পিসিতে "Zebra Browser Print" অ্যাপ ইনস্টল ও চালু থাকতে হবে।']}):J.jsxs(J.Fragment,{children:["ℹ️ ",J.jsx("strong",{children:"যেকোনো প্রিন্টারে প্রিন্ট:"})," এই মোডে কোনো সফটওয়্যার ইনস্টল বা বিশেষ পেপার সাইজ সিলেক্ট করার দরকার নেই — সরাসরি ",J.jsx("strong",{children:"লেবেল প্রিন্ট করুন"})," বাটনে চাপুন, ডিফল্ট A4/Letter কাগজেই লেবেল প্রিন্ট হয়ে যাবে (কাগজের কোণায়)। যদি আপনার আলাদা লেবেল প্রিন্টার থাকে এবং একদম নিখুঁতভাবে কাটা লেবেলে প্রিন্ট করতে চান, তাহলে প্রিন্ট উইন্ডোতে ঐচ্ছিকভাবে কাস্টম পেপার সাইজ ",J.jsx("strong",{children:z?'3.24" x 1.00"':'1.00" x 1.00"'})," এবং মার্জিন ",J.jsx("strong",{children:"None"})," বেছে নিতে পারেন।"]})})]})]}),J.jsxs("div",{className:"md:col-span-7 p-5 flex flex-col items-center justify-start bg-slate-50/50",children:[J.jsxs("div",{className:"w-full flex items-center flex-wrap justify-between mb-3 gap-2",children:[J.jsxs("span",{className:"text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1",children:[J.jsx(t6,{className:"w-3.5 h-3.5 text-brand-accent"}),"গোল বৃত্তাকার শেপ (মাউস দিয়ে টেনে পজিশন করুন)"]}),J.jsxs("div",{className:"flex items-center flex-wrap gap-2 shrink-0",children:[J.jsxs("div",{className:"flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5",title:"স্টিকারের প্রকৃত সাইজের সাথে মেলাতে প্রিন্ট সাইজ কমান/বাড়ান",children:[J.jsx("span",{className:"text-[9.5px] font-bold text-slate-400 uppercase mr-0.5",children:"সাইজ"}),J.jsx("button",{onClick:()=>setLabelDiaIn(T=>Math.max(.5,parseFloat((T-.02).toFixed(2)))),className:"w-4 h-4 rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]",children:"−"}),J.jsxs("span",{className:"w-10 text-center text-[10px] font-mono font-bold text-slate-900",children:[labelDiaIn.toFixed(2),"\""]}),J.jsx("button",{onClick:()=>setLabelDiaIn(T=>Math.min(2,parseFloat((T+.02).toFixed(2)))),className:"w-4 h-4 rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]",children:"+"})]}),J.jsxs("button",{onClick:()=>setRotate180(T=>!T),className:`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold uppercase transition ${rotate180?"bg-brand-accent text-white border-brand-accent":"bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`,title:"লেবেলটি ১৮০° উল্টে প্রিন্ট করুন",children:["⟲ ১৮০°"]}),J.jsx("button",{onClick:nn,className:"text-[10.5px] font-bold text-brand-steel hover:underline whitespace-nowrap",children:"রিসেট পজিশন"})]})]}),me?J.jsxs("div",{className:"w-full space-y-4",children:[J.jsxs("div",{className:"bg-white p-4 rounded-xl border border-slate-200/60 space-y-3",children:[J.jsxs("div",{className:"flex items-center justify-between",children:[J.jsxs("span",{className:"text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1",children:[J.jsx(r6,{className:"w-3.5 h-3.5 text-brand-steel"}),"ফন্ট সাইজ অ্যাডজাস্টমেন্ট (Font Size)"]}),J.jsx("button",{onClick:y0,className:"text-[10px] font-bold text-brand-steel hover:underline",children:"রিসেট ফন্ট"})]}),J.jsx("div",{className:"grid grid-cols-2 sm:grid-cols-5 gap-2",children:Object.keys(ri).map(T=>J.jsxs("div",{className:"flex flex-col items-center justify-center p-2 border border-slate-100 rounded-lg bg-slate-50/50 hover:bg-slate-50 transition text-center",children:[J.jsx("span",{className:"text-[10px] font-bold uppercase font-mono text-slate-500 mb-1.5 truncate w-full",children:T==="sty"?"Sty":T==="count"?"Count":T==="col"?"Col":T==="shade"?"Shade":"Batch"}),J.jsxs("div",{className:"flex items-center gap-1",children:[J.jsx("button",{onClick:()=>jn(T,!1),className:"w-4 h-4 rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]",children:J.jsx(Y8,{className:"w-2 h-2"})}),J.jsx("span",{className:"w-7 text-center text-[10px] font-mono font-bold text-slate-900",children:lt[T]}),J.jsx("button",{onClick:()=>jn(T,!0),className:"w-4 h-4 rounded border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]",children:J.jsx(K8,{className:"w-2 h-2"})})]})]},`font-${T}`))})]}),J.jsxs("div",{className:"flex flex-col items-center py-4 bg-slate-150/40 rounded-2xl border border-slate-200 p-4",children:[z&&J.jsxs("div",{className:"mb-3.5 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-brand-accent text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-3xs animate-pulse",children:[J.jsx("span",{className:"w-1.5 h-1.5 rounded-full bg-brand-accent"}),"৩-কলাম প্রিন্ট মোড সক্রিয়"]}),J.jsxs("div",{ref:Fr,className:"relative w-[190px] h-[190px] rounded-full border-4 border-slate-950 bg-white shadow-xl overflow-hidden select-none cursor-crosshair",children:[J.jsx("div",{className:"absolute left-1/2 top-0 bottom-0 border-l border-dashed border-slate-200/50 pointer-events-none"}),J.jsx("div",{className:"absolute top-1/2 left-0 right-0 border-t border-dashed border-slate-200/50 pointer-events-none"}),J.jsx("div",{className:"absolute inset-2 border border-slate-100 rounded-full pointer-events-none"}),Ba(me,1.9).map((T,w)=>{const O=Ge===T.key;return J.jsx("div",{className:`absolute text-black leading-tight select-none ${T.idx===0?"cursor-move hover:text-brand-accent hover:scale-105 active:scale-100 transition-transform duration-75 font-bold":"pointer-events-none"} ${O&&T.idx===0?"text-brand-accent font-black":""}`,style:{left:`${T.x}%`,top:`${T.y}%`,fontSize:`${T.fontSizePt}pt`,fontWeight:T.weight,transform:"translate(-50%, -50%)",textAlign:"center",whiteSpace:"nowrap",zIndex:O?10:1},onPointerDown:F=>{T.idx===0&&di(T.key,F)},title:T.idx===0?`টেনে সরাতে ক্লিক করে ড্র্যাগ করুন (${T.key})`:void 0,children:T.text},`single-${T.key}-${T.idx}-${w}`)})]}),J.jsx("p",{className:"text-[10px] text-slate-500 text-center max-w-[340px] leading-relaxed mt-4",children:z?'১" স্টিকারের ক্যালিব্রেশন প্রিভিউ। এখানে ১টি স্টিকার দিয়ে এলাইনমেন্ট ঠিক করুন। প্রিন্ট দেওয়ার সময় স্বয়ংক্রিয়ভাবে পাশাপাশি ৩টি প্রিন্ট হবে।':'১" x ১" গোল স্টিকারের ম্যাগনিফাইড প্রিভিউ। টেক্সটের শুরুর পয়েন্ট ধরে টেনে যেকোনো পজিশনে সরাতে পারেন।'})]})]}):J.jsxs("div",{className:"text-center py-16 text-slate-400 flex flex-col items-center justify-center",children:[J.jsx(I8,{className:"w-10 h-10 text-slate-300 mb-2"}),J.jsx("p",{className:"text-xs font-semibold",children:"কোনো ব্যাচ সার্চ করে সিলেক্ট করুন"})]})]})]})]})})," ",J.jsx("div",{id:"print-section",children:z?Array.from({length:vt}).map((T,w)=>{const O=V==="same"?me:A!==-1&&A+w*3<_.length?_[A+w*3]:null,F=V==="same"?me:A!==-1&&A+w*3+1<_.length?_[A+w*3+1]:null,N=V==="same"?me:A!==-1&&A+w*3+2<_.length?_[A+w*3+2]:null;return J.jsxs("div",{className:"print-sticker-row-3up",children:[O&&J.jsx("div",{className:"print-sticker-circle-3up-col",style:{left:`${X}in`},children:Ba(O,1).map((P,ue)=>J.jsx("div",{className:"print-text-line",style:{left:`${P.x}%`,top:`${P.y}%`,fontSize:`${P.fontSizePt}pt`,fontWeight:P.weight},children:P.text},`print-text-c1-${w}-${ue}`))}),F&&J.jsx("div",{className:"print-sticker-circle-3up-col",style:{left:`${X+labelDiaIn+te}in`},children:Ba(F,1).map((P,ue)=>J.jsx("div",{className:"print-text-line",style:{left:`${P.x}%`,top:`${P.y}%`,fontSize:`${P.fontSizePt}pt`,fontWeight:P.weight},children:P.text},`print-text-c2-${w}-${ue}`))}),N&&J.jsx("div",{className:"print-sticker-circle-3up-col",style:{left:`${X+2*labelDiaIn+te*2}in`},children:Ba(N,1).map((P,ue)=>J.jsx("div",{className:"print-text-line",style:{left:`${P.x}%`,top:`${P.y}%`,fontSize:`${P.fontSizePt}pt`,fontWeight:P.weight},children:P.text},`print-text-c3-${w}-${ue}`))})]},`print-row-${w}`)}):me&&Array.from({length:vt}).map((T,w)=>J.jsx("div",{className:"print-sticker-circle-1up",children:Ba(me,1).map((O,F)=>J.jsx("div",{className:"print-text-line",style:{left:`${O.x}%`,top:`${O.y}%`,fontSize:`${O.fontSizePt}pt`,fontWeight:O.weight},children:O.text},`print-text-1up-${F}-${w}`))},`print-sticker-1up-${w}`))}),De&&J.jsx("div",{className:"no-print fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4",children:J.jsxs("div",{className:"bg-white rounded-2xl shadow-2xl max-w-lg w-full p-5 space-y-3",children:[J.jsxs("div",{className:"flex items-center justify-between",children:[J.jsx("h3",{className:"font-black text-slate-800 text-sm",children:"ZPL কোড (Raw)"}),J.jsx("button",{onClick:()=>Q(!1),className:"text-slate-400 hover:text-slate-700 text-xl leading-none",children:"×"})]}),J.jsxs("p",{className:"text-[11px] text-slate-500 leading-relaxed",children:["এই কোডটা কপি করে সরাসরি প্রিন্টারে পাঠাতে পারেন (USB টার্মিনাল টুল দিয়ে), অথবা প্রিন্ট করার আগে যাচাই করতে"," ",J.jsx("a",{href:"https://labelary.com/viewer.html",target:"_blank",rel:"noreferrer",className:"text-brand-accent font-bold underline",children:"Labelary.com"})," ","এ পেস্ট করে দেখতে পারেন (লেবেল সাইজ 1x1 inch, ",q===300?"12":"8"," dpmm দিন)।"]}),J.jsx("textarea",{readOnly:!0,value:Oe,className:"w-full h-56 text-[11px] font-mono bg-slate-900 text-emerald-300 p-3 rounded-lg border border-slate-700",onClick:T=>T.target.select()}),J.jsxs("div",{className:"flex gap-2",children:[J.jsx("button",{onClick:()=>{var T;(T=navigator.clipboard)==null||T.writeText(Oe)},className:"flex-1 bg-slate-800 text-white text-xs font-bold py-2 rounded-lg",children:"কোড কপি করুন"}),J.jsx("button",{onClick:()=>{D2(Oe).then(()=>{j("sent"),Q(!1)}).catch(()=>{j("failed")})},className:"flex-1 bg-brand-accent text-white text-xs font-bold py-2 rounded-lg",children:"আবার পাঠান চেষ্টা করুন"})]})]})})]})}Op.createRoot(document.getElementById("root")).render(J.jsx(je.StrictMode,{children:J.jsx(f6,{})}));
 </script>
 </body>
