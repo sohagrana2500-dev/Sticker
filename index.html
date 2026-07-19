@@ -47,12 +47,19 @@
       (function () {
         var SHEET_API_URL =
           "https://script.google.com/macros/s/AKfycbxAYueyk6HW3J3bwMUbEQlrDs_xHDWtpyM3Gc0KbveYPICrVAXueC-BCsmVJkVJ3qzCdw/exec";
+        // অন্য স্ক্রিপ্ট (লগইন গেট) থেকেও একই URL ব্যবহারের জন্য
+        window.__SHEET_API_URL = SHEET_API_URL;
 
-        // localStorage কী → Apps Script-এর "type" প্যারামিটার
+        // localStorage কী → Apps Script-এর "type" প্যারামিটার (পুশ করার সময় ব্যবহৃত হয়)
         var KEY_TYPE_MAP = {
           "dbl_label_schedule_data_v3": "batches",
           "blps_users_v1": "users"
         };
+
+        // পেজ লোড হওয়ার সাথে সাথেই শুধু ব্যাচ ডেটা টানা হবে (সবার জন্য দরকার)।
+        // ইউজার লিস্ট (পাসওয়ার্ড সহ) এখন আর প্রত্যেক ভিজিটরের ব্রাউজারে
+        // স্বয়ংক্রিয়ভাবে ডাউনলোড হবে না — এটা শুধু এডমিন লগইন করলেই আনা হবে।
+        var PULL_ON_LOAD_KEYS = ["dbl_label_schedule_data_v3"];
 
         var _origSetItem = localStorage.setItem.bind(localStorage);
         var _syncTimers = {};
@@ -75,9 +82,8 @@
           }
         };
 
-        // পেজ লোডের সময় দুইটা টাইপের ডেটাই Sheet থেকে টেনে আনা
-        var keysToSync = Object.keys(KEY_TYPE_MAP);
-        var pending = keysToSync.length;
+        // পেজ লোডের সময় শুধু ব্যাচ ডেটা Sheet থেকে টেনে আনা
+        var pending = PULL_ON_LOAD_KEYS.length;
         var needsReload = false;
 
         function done() {
@@ -85,7 +91,7 @@
           if (pending === 0 && needsReload) location.reload();
         }
 
-        keysToSync.forEach(function (key) {
+        PULL_ON_LOAD_KEYS.forEach(function (key) {
           var type = KEY_TYPE_MAP[key];
           fetch(SHEET_API_URL + "?type=" + type)
             .then(function (r) { return r.json(); })
@@ -252,10 +258,13 @@
 
     <script>
       (function () {
+        // "admin" এখন শুধু একটা সংরক্ষিত ইউজারনেম — আসল পাসওয়ার্ড যাচাই এখন
+        // আর এখানে হয় না, বরং Google Apps Script-এ (সার্ভার সাইডে) হয়, যাতে
+        // এই HTML ফাইলে কোথাও এডমিনের পাসওয়ার্ড লেখা না থাকে।
         var ADMIN_USER = "admin";
-        var ADMIN_PASS = "eco@sr123";
         var USERS_KEY = "blps_users_v1";
         var SESSION_KEY = "blps_session_v1";
+        var API_URL = window.__SHEET_API_URL;
 
         document.documentElement.classList.add("blps-locked");
 
@@ -301,35 +310,52 @@
           });
         }
 
-        // ---- Single login: auto-detects admin vs user ----
+        // ---- Single login: verified on the server (Apps Script), not in the browser ----
         window.blpsLogin = function (evt) {
           evt.preventDefault();
           clearError();
           var u = document.getElementById("login-username").value.trim();
           var p = document.getElementById("login-password").value;
+          var btn = evt.target.querySelector(".auth-submit");
+          var originalBtnText = btn ? btn.textContent : "";
+          if (btn) { btn.disabled = true; btn.textContent = "যাচাই করা হচ্ছে..."; }
 
-          if (u === ADMIN_USER && p === ADMIN_PASS) {
-            setSession({ role: "admin", username: ADMIN_USER });
-            enterAdmin();
-            return false;
-          }
-
-          var users = getUsers();
-          var match = null;
-          for (var i = 0; i < users.length; i++) {
-            if (users[i].username === u && users[i].password === p) {
-              match = users[i];
-              break;
-            }
-          }
-          if (!match) {
-            showError("ভুল ইউজারনেম বা পাসওয়ার্ড।");
-          } else if (match.active === false) {
-            showError("এই ইউজার অ্যাকাউন্টটি বর্তমানে বন্ধ আছে। এডমিনের সাথে যোগাযোগ করুন।");
-          } else {
-            setSession({ role: "user", username: match.username });
-            enterApp(match);
-          }
+          fetch(API_URL + "?type=login", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ username: u, password: p })
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+              if (!res || !res.ok) {
+                if (res && res.reason === "inactive") {
+                  showError("এই ইউজার অ্যাকাউন্টটি বর্তমানে বন্ধ আছে। এডমিনের সাথে যোগাযোগ করুন।");
+                } else {
+                  showError("ভুল ইউজারনেম বা পাসওয়ার্ড।");
+                }
+                return;
+              }
+              if (res.role === "admin") {
+                setSession({ role: "admin", username: res.username });
+                enterAdmin();
+              } else {
+                var record = {
+                  username: res.username,
+                  active: true,
+                  headerName: res.headerName || "",
+                  logo: res.logo || ""
+                };
+                setSession({ role: "user", username: res.username, headerName: record.headerName, logo: record.logo });
+                enterApp(record);
+              }
+            })
+            .catch(function (err) {
+              console.error("লগইন যাচাই ব্যর্থ:", err);
+              showError("সার্ভারের সাথে যোগাযোগ করা যাচ্ছে না। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।");
+            })
+            .finally(function () {
+              if (btn) { btn.disabled = false; btn.textContent = originalBtnText; }
+            });
           return false;
         };
 
@@ -529,6 +555,18 @@
           document.documentElement.classList.remove("blps-branded");
           document.documentElement.classList.add("blps-locked");
           renderUserList();
+          // এডমিন প্যানেল খোলার সাথে সাথেই Sheet থেকে সর্বশেষ ইউজার লিস্ট টেনে আনা
+          fetch(API_URL + "?type=users")
+            .then(function (r) { return r.json(); })
+            .then(function (list) {
+              if (Array.isArray(list)) {
+                saveUsers(list);
+                renderUserList();
+              }
+            })
+            .catch(function (err) {
+              console.error("Users লিস্ট আনতে সমস্যা:", err);
+            });
         }
 
         function enterApp(userRecord) {
@@ -562,16 +600,30 @@
         if (session && session.role === "admin") {
           enterAdmin();
         } else if (session && session.role === "user") {
-          var users = getUsers();
-          var stillValid = users.filter(function (u) {
-            return u.username === session.username && u.active !== false;
-          })[0];
-          if (stillValid) {
-            enterApp(stillValid);
-          } else {
-            clearSession();
-            showLogin();
-          }
+          // পুরো ইউজার লিস্ট (পাসওয়ার্ড সহ) ডাউনলোড না করে, শুধু এই একজন
+          // ইউজার এখনো "চালু" আছে কিনা তা সার্ভারে জিজ্ঞেস করা হচ্ছে।
+          fetch(API_URL + "?type=checkuser&username=" + encodeURIComponent(session.username))
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+              if (res && res.active) {
+                enterApp({
+                  username: session.username,
+                  headerName: res.headerName || "",
+                  logo: res.logo || ""
+                });
+              } else {
+                clearSession();
+                showLogin();
+              }
+            })
+            .catch(function () {
+              // ইন্টারনেট সমস্যা হলে আগের সেশন তথ্য দিয়েই সাময়িকভাবে ঢুকতে দেওয়া হচ্ছে
+              enterApp({
+                username: session.username,
+                headerName: session.headerName || "",
+                logo: session.logo || ""
+              });
+            });
         } else {
           showLogin();
         }
