@@ -1,4 +1,5 @@
 
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -24,6 +25,87 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <script>
+      /* =====================================================================
+         GOOGLE SHEETS SYNC (ব্যাচ ডেটা + ইউজার একাউন্ট এখন Google Sheet-এ থাকবে)
+         ---------------------------------------------------------------------
+         এই স্ক্রিপ্টটি অ্যাপের মূল কোডকে স্পর্শ না করেই localStorage-এর দুইটা
+         কী-কে Google Apps Script Web App-এর মাধ্যমে Google Sheet-এর দুইটা
+         ট্যাবের সাথে সিঙ্ক করে:
+
+           - "dbl_label_schedule_data_v3"  → Sheet ট্যাব "Batches"  (ব্যাচ ডেটা)
+           - "blps_users_v1"               → Sheet ট্যাব "Users"    (ইউজার লগইন)
+
+         - পেজ লোড হওয়ার সময়: Sheet থেকে সর্বশেষ ডেটা নিয়ে এসে localStorage
+           আপডেট করে (কোনো পরিবর্তন থাকলে একবার রিলোড হবে)।
+         - অ্যাডমিন প্যানেল থেকে ব্যাচ সেভ করলে বা নতুন ইউজার তৈরি/এডিট/ডিলিট
+           করলে: সেই নতুন ডেটা স্বয়ংক্রিয়ভাবে Google Sheet-এ লেখা হয়ে যাবে।
+
+         Web App URL পরিবর্তন করতে চাইলে শুধু নিচের SHEET_API_URL বদলান।
+         ===================================================================== */
+      (function () {
+        var SHEET_API_URL =
+          "https://script.google.com/macros/s/AKfycbxAYueyk6HW3J3bwMUbEQlrDs_xHDWtpyM3Gc0KbveYPICrVAXueC-BCsmVJkVJ3qzCdw/exec";
+
+        // localStorage কী → Apps Script-এর "type" প্যারামিটার
+        var KEY_TYPE_MAP = {
+          "dbl_label_schedule_data_v3": "batches",
+          "blps_users_v1": "users"
+        };
+
+        var _origSetItem = localStorage.setItem.bind(localStorage);
+        var _syncTimers = {};
+
+        // অ্যাপ যখনই ব্যাচ/ইউজার ডেটা localStorage-এ সেভ করবে, তখনই তা Sheet-এ পাঠানো হবে
+        localStorage.setItem = function (key, value) {
+          _origSetItem(key, value);
+          var type = KEY_TYPE_MAP[key];
+          if (type) {
+            clearTimeout(_syncTimers[type]);
+            _syncTimers[type] = setTimeout(function () {
+              fetch(SHEET_API_URL + "?type=" + type, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: value
+              }).catch(function (err) {
+                console.error("Google Sheet-এ সিঙ্ক ব্যর্থ হয়েছে (" + type + "):", err);
+              });
+            }, 400);
+          }
+        };
+
+        // পেজ লোডের সময় দুইটা টাইপের ডেটাই Sheet থেকে টেনে আনা
+        var keysToSync = Object.keys(KEY_TYPE_MAP);
+        var pending = keysToSync.length;
+        var needsReload = false;
+
+        function done() {
+          pending -= 1;
+          if (pending === 0 && needsReload) location.reload();
+        }
+
+        keysToSync.forEach(function (key) {
+          var type = KEY_TYPE_MAP[key];
+          fetch(SHEET_API_URL + "?type=" + type)
+            .then(function (r) { return r.json(); })
+            .then(function (sheetData) {
+              if (!Array.isArray(sheetData) || sheetData.length === 0) { done(); return; }
+              var newVal = JSON.stringify(sheetData);
+              var oldVal = localStorage.getItem(key);
+              if (newVal !== oldVal) {
+                _origSetItem(key, newVal);
+                needsReload = true;
+              }
+              done();
+            })
+            .catch(function (err) {
+              console.error("Google Sheet থেকে ডেটা আনতে সমস্যা হয়েছে (" + type + "):", err);
+              done();
+            });
+        });
+      })();
+    </script>
 
     <style>
       #auth-gate,#auth-gate *,#admin-gate,#admin-gate *,#app-logout-bar,#app-logout-bar *{box-sizing:border-box;font-family:"Inter","Noto Sans Bengali",ui-sans-serif,system-ui,sans-serif;}
