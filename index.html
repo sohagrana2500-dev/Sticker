@@ -47,8 +47,11 @@
       (function () {
         var SHEET_API_URL =
           "https://script.google.com/macros/s/AKfycby0oSKLlui_7LRD0N_2JRJ0pIxt1qxv_bKOcxmw9qOTspcYDjd9YowA-cs8B3kYJQI_/exec";
-        // অন্য স্ক্রিপ্ট (লগইন গেট) থেকেও একই URL ব্যবহারের জন্য
+        // এই কী-টা Apps Script কোডের SECRET_KEY-এর সাথে হুবহু মিলতে হবে
+        var API_SECRET_KEY = "FutBHnRMQfX6_2dNok4gUcegdUL-xgO3";
+        // অন্য স্ক্রিপ্ট (লগইন গেট) থেকেও একই URL/কী ব্যবহারের জন্য
         window.__SHEET_API_URL = SHEET_API_URL;
+        window.__API_SECRET_KEY = API_SECRET_KEY;
 
         // localStorage কী → Apps Script-এর "type" প্যারামিটার (পুশ করার সময় ব্যবহৃত হয়)
         var KEY_TYPE_MAP = {
@@ -71,7 +74,7 @@
           if (type) {
             clearTimeout(_syncTimers[type]);
             _syncTimers[type] = setTimeout(function () {
-              fetch(SHEET_API_URL + "?type=" + type, {
+              fetch(SHEET_API_URL + "?type=" + type + "&key=" + API_SECRET_KEY, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
                 body: value
@@ -93,7 +96,7 @@
 
         PULL_ON_LOAD_KEYS.forEach(function (key) {
           var type = KEY_TYPE_MAP[key];
-          fetch(SHEET_API_URL + "?type=" + type)
+          fetch(SHEET_API_URL + "?type=" + type + "&key=" + API_SECRET_KEY)
             .then(function (r) { return r.json(); })
             .then(function (sheetData) {
               if (!Array.isArray(sheetData) || sheetData.length === 0) { done(); return; }
@@ -265,6 +268,7 @@
         var USERS_KEY = "blps_users_v1";
         var SESSION_KEY = "blps_session_v1";
         var API_URL = window.__SHEET_API_URL;
+        var API_KEY = window.__API_SECRET_KEY;
 
         document.documentElement.classList.add("blps-locked");
 
@@ -320,7 +324,7 @@
           var originalBtnText = btn ? btn.textContent : "";
           if (btn) { btn.disabled = true; btn.textContent = "যাচাই করা হচ্ছে..."; }
 
-          fetch(API_URL + "?type=login", {
+          fetch(API_URL + "?type=login&key=" + API_KEY, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ username: u, password: p })
@@ -556,7 +560,7 @@
           document.documentElement.classList.add("blps-locked");
           renderUserList();
           // এডমিন প্যানেল খোলার সাথে সাথেই Sheet থেকে সর্বশেষ ইউজার লিস্ট টেনে আনা
-          fetch(API_URL + "?type=users")
+          fetch(API_URL + "?type=users&key=" + API_KEY)
             .then(function (r) { return r.json(); })
             .then(function (list) {
               if (Array.isArray(list)) {
@@ -602,7 +606,7 @@
         } else if (session && session.role === "user") {
           // পুরো ইউজার লিস্ট (পাসওয়ার্ড সহ) ডাউনলোড না করে, শুধু এই একজন
           // ইউজার এখনো "চালু" আছে কিনা তা সার্ভারে জিজ্ঞেস করা হচ্ছে।
-          fetch(API_URL + "?type=checkuser&username=" + encodeURIComponent(session.username))
+          fetch(API_URL + "?type=checkuser&username=" + encodeURIComponent(session.username) + "&key=" + API_KEY)
             .then(function (r) { return r.json(); })
             .then(function (res) {
               if (res && res.active) {
